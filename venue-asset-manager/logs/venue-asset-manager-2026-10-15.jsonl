@@ -1,0 +1,1 @@
+{"timestamp":"2026-10-15T09:12:33.425Z","source":"frontend","level":"error","type":"api.http_error","message":"API request failed: 401 Unauthorized","page":"/venueassetmanager/venues","status":401,"stack":""}

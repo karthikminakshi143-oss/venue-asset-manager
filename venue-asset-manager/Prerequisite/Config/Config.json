@@ -1,0 +1,13 @@
+{
+  "ApplicationName": "Venue Asset Manager",
+  "VenueId": "CHANGE_ME",
+  "SkipVenueValidation": true,
+  "IISSiteName": "VenueAssetManager",
+  "IISPhysicalPath": "C:\\VenueAssetManager\\dist",
+  "BackendPath": "C:\\VenueAssetManager\\server",
+  "BackendPort": 4000,
+  "DatabaseHost": "127.0.0.1",
+  "DatabasePort": 3306,
+  "DatabaseName": "venue_asset_manager",
+  "DatabaseUser": "root"
+}

@@ -1,0 +1,9 @@
+{
+  "name":"venue-asset-manager",
+  "private":true,
+  "version":"2.0.0",
+  "type":"module",
+  "scripts":{"dev":"concurrently \"npm run dev:api\" \"npm run dev:web\"","dev:api":"npm --prefix server run dev","dev:web":"vite","build":"vite build","preview":"vite preview"},
+  "dependencies":{"lucide-react":"^0.468.0","react":"^19.0.0","react-dom":"^19.0.0","react-router-dom":"^7.1.5"},
+  "devDependencies":{"@vitejs/plugin-react":"^4.3.4","vite":"^6.1.0","concurrently":"^9.1.2"}
+}

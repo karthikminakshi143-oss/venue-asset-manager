@@ -1,0 +1,315 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "name": "Administrator",
+      "username": "admin@venueassetmanager.local",
+      "passwordHash": "$2b$10$hcEkoXNMOpTaPEClRHNXMOHwS7wxToBJHVftwaZ.xJIAt32.dv7BO",
+      "role": "Admin",
+      "permissions": [
+        "dashboard",
+        "venues",
+        "assets",
+        "reports",
+        "calculator",
+        "users"
+      ],
+      "email": "admin@venueassetmanager.local"
+    },
+    {
+      "id": "999b69df-872e-4f0c-98ff-7547daf3d247",
+      "name": "pavan kumar",
+      "username": "pavan.kumar@venueassetmanager.local",
+      "passwordHash": "$2b$10$LBjqtLMnKoPBBJFbgIGz1OwYf2xvDllaZ9bHoSJSS71QmSUvTWDle",
+      "role": "Support",
+      "permissions": [
+        "dashboard"
+      ],
+      "email": "pavan.kumar@venueassetmanager.local"
+    },
+    {
+      "id": "0500c1d0-c80d-424c-add6-4140792a65f3",
+      "name": "vasu",
+      "username": "vasu@venueassetmanager.local",
+      "passwordHash": "$2b$10$txlBjY9ZmYkh343d8/8g5e3x0pnktjS7i0nuy2M76r/SEV1OaBQEi",
+      "role": "Support",
+      "permissions": [
+        "dashboard",
+        "calculator",
+        "assets",
+        "venues"
+      ],
+      "email": "vasu@venueassetmanager.local"
+    }
+  ],
+  "venues": [
+    {
+      "venueId": "10465",
+      "name": "sangeetha theatre",
+      "state": "Telangana",
+      "stateCode": "36",
+      "district": "medchal",
+      "districtCode": "",
+      "location": "rc puram",
+      "contact": "8341977412",
+      "address": "rc puram",
+      "updatedBy": "Administrator",
+      "id": "d0b7fb86-d7c5-49e2-95fd-807afb5f1f14",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "10414",
+      "name": "geniex theatre ",
+      "state": "Telangana",
+      "stateCode": "36",
+      "district": "warangal",
+      "districtCode": "",
+      "location": "kazipet",
+      "contact": "8500414445",
+      "address": "",
+      "updatedBy": "Administrator",
+      "id": "1c32e7e3-1a16-4035-97d5-23ad4dbdb193",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "454474",
+      "name": "karthik theatre",
+      "state": "Telangana",
+      "stateCode": "36",
+      "district": "medchal ",
+      "districtCode": "",
+      "location": "near bus stand",
+      "contact": "7411041177",
+      "address": "",
+      "updatedBy": "Administrator",
+      "id": "95126e08-49cf-4093-b9d2-fa4600557eed",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "10505",
+      "name": "ranga theatre",
+      "state": "Telangana",
+      "stateCode": "36",
+      "district": "medchal malkajgiri",
+      "districtCode": "",
+      "location": "near bus stand ",
+      "contact": "8341977412",
+      "address": "",
+      "updatedBy": "Administrator",
+      "id": "0cac6e1b-64f8-40b6-961d-47ab0c1563a5",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "798",
+      "name": "vasu theatre ",
+      "state": "Andhra Pradesh",
+      "stateCode": "28",
+      "district": "anakapalli",
+      "districtCode": "",
+      "location": "anakapalli",
+      "contact": "8341977412",
+      "address": "",
+      "updatedBy": "Administrator",
+      "id": "610c71b1-6456-46ff-a6eb-608a37e57ad7",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "2345",
+      "name": "shiva anna theatre",
+      "state": "Telangana",
+      "stateCode": "36",
+      "district": "shiva",
+      "districtCode": "",
+      "location": "shiva",
+      "contact": "7410852209",
+      "address": "sjkhsd",
+      "updatedBy": "Administrator",
+      "id": "9a33bc34-04e6-444b-8a55-fe03a3dcb087",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "837",
+      "name": "venkatesh",
+      "state": "Andhra Pradesh",
+      "stateCode": "28",
+      "district": "kurnool",
+      "districtCode": "",
+      "location": "kurnool city",
+      "contact": "6309425306",
+      "address": "beside exhibition ground",
+      "updatedBy": "Administrator",
+      "id": "1e1419a7-1392-481d-af25-b0de0e1e570d",
+      "createdBy": "Administrator"
+    }
+  ],
+  "assets": [
+    {
+      "venueId": "b912b2d8-26aa-4178-8383-00a790fbbca7",
+      "category": "Desktops",
+      "model": "HP",
+      "serial": "dfgsdfg",
+      "quantity": 3,
+      "details": "",
+      "venueName": "dgdfg",
+      "updatedBy": "Administrator",
+      "id": "6d6ed572-4f56-45a8-914d-43ce33e5e2b3",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "d0b7fb86-d7c5-49e2-95fd-807afb5f1f14",
+      "category": "Printers",
+      "model": "Epson",
+      "serial": "XERGH741001",
+      "quantity": 1,
+      "details": "working in site ",
+      "venueName": "sangeetha theatre",
+      "updatedBy": "Administrator",
+      "id": "42176ed1-73b2-4c72-af34-b94f4ca494e5",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "d0b7fb86-d7c5-49e2-95fd-807afb5f1f14",
+      "category": "CPUs",
+      "model": "Other",
+      "serial": "assemble",
+      "quantity": 1,
+      "details": "",
+      "venueName": "sangeetha theatre",
+      "updatedBy": "Administrator",
+      "id": "062e2d14-e645-4e2b-948c-73940db40127",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "d0b7fb86-d7c5-49e2-95fd-807afb5f1f14",
+      "category": "Desktops",
+      "model": "Other",
+      "serial": "assemble",
+      "quantity": 1,
+      "details": "",
+      "venueName": "sangeetha theatre",
+      "updatedBy": "Administrator",
+      "id": "b9bb0f49-338f-46b3-aff6-bc558e6261f9",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "1c32e7e3-1a16-4035-97d5-23ad4dbdb193",
+      "category": "CPUs",
+      "model": "Other",
+      "serial": "assemble",
+      "quantity": 2,
+      "details": "",
+      "venueName": "geniex theatre ",
+      "updatedBy": "Administrator",
+      "id": "48ed0e65-e9f0-4df9-af3d-3bac78249582",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "1c32e7e3-1a16-4035-97d5-23ad4dbdb193",
+      "category": "Desktops",
+      "model": "Other",
+      "serial": "assemble",
+      "quantity": 1,
+      "details": "",
+      "venueName": "geniex theatre ",
+      "updatedBy": "Administrator",
+      "id": "55d5a1d2-3924-4267-bef3-336b012b39ed",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "95126e08-49cf-4093-b9d2-fa4600557eed",
+      "category": "Printers",
+      "model": "Epson",
+      "serial": "xededdft546",
+      "quantity": 1,
+      "details": "working",
+      "venueName": "karthik theatre",
+      "updatedBy": "Administrator",
+      "id": "fb508113-fb57-42c1-9d3c-8e5543949ca8",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "95126e08-49cf-4093-b9d2-fa4600557eed",
+      "category": "Keyboards",
+      "model": "Zebronics",
+      "serial": "na",
+      "quantity": 3,
+      "details": "",
+      "venueName": "karthik theatre",
+      "updatedBy": "Administrator",
+      "id": "e77938b3-52e8-4ade-b6de-d0f990867fd2",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "95126e08-49cf-4093-b9d2-fa4600557eed",
+      "category": "CPUs",
+      "model": "Other",
+      "serial": "assemble",
+      "quantity": 23,
+      "details": "rental from vizag ",
+      "venueName": "karthik theatre",
+      "updatedBy": "Administrator",
+      "id": "c16e77d4-4881-419d-aaed-717b9368a895",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "0cac6e1b-64f8-40b6-961d-47ab0c1563a5",
+      "category": "Printers",
+      "model": "Epson",
+      "serial": "x34555677",
+      "quantity": 1,
+      "details": "working ",
+      "venueName": "ranga theatre",
+      "updatedBy": "Administrator",
+      "id": "16efd61e-ee03-402c-ad00-9492dc4fa171",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "610c71b1-6456-46ff-a6eb-608a37e57ad7",
+      "category": "Printers",
+      "model": "Epson",
+      "serial": "XERGYDF",
+      "quantity": 2,
+      "details": "",
+      "venueName": "vasu theatre ",
+      "updatedBy": "Administrator",
+      "id": "1e135a53-0a00-40d8-be2c-26536c856846",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "610c71b1-6456-46ff-a6eb-608a37e57ad7",
+      "category": "CPUs",
+      "model": "Other",
+      "serial": "rental systems ",
+      "quantity": 3,
+      "details": "rental ",
+      "venueName": "vasu theatre ",
+      "updatedBy": "Administrator",
+      "id": "f9e987c4-7372-4df2-aa14-a7da5fe25a55",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "610c71b1-6456-46ff-a6eb-608a37e57ad7",
+      "category": "Desktops",
+      "model": "Other",
+      "serial": "rental",
+      "quantity": 3,
+      "details": "rental",
+      "venueName": "vasu theatre ",
+      "updatedBy": "Administrator",
+      "id": "e430c94d-5c7d-4072-88c2-14506d36b02f",
+      "createdBy": "Administrator"
+    },
+    {
+      "venueId": "9a33bc34-04e6-444b-8a55-fe03a3dcb087",
+      "category": "Printers",
+      "model": "Epson",
+      "serial": "XERJYT",
+      "quantity": 2,
+      "details": "working",
+      "venueName": "shiva anna theatre",
+      "updatedBy": "Administrator",
+      "id": "2e1f3eac-126b-49df-b696-42268bdb04ed",
+      "createdBy": "Administrator"
+    }
+  ]
+}

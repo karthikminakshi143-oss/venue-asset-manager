@@ -1,0 +1,11 @@
+{
+  "S3Bucket": "CHANGE_ME",
+  "S3Prefix": "venue-asset-manager/mysql",
+  "AwsRegion": "ap-south-1",
+  "DatabaseName": "venue_asset_manager",
+  "DbHost": "127.0.0.1",
+  "DbPort": 3306,
+  "MysqldumpPath": "C:\\Program Files\\MySQL\\MySQL Server 5.6\\bin\\mysqldump.exe",
+  "MysqlDefaultsFile": "C:\\ProgramData\\VenueAssetManagerBackup\\mysql-backup.cnf",
+  "LocalRetentionDays": 3
+}

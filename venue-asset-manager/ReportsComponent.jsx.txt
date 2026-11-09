@@ -1,0 +1,98 @@
+function Reports(){
+  const [view,setView]=useState('state');
+  const [rows,setRows]=useState([]);
+  const [busy,setBusy]=useState(false);
+  const [err,setErr]=useState('');
+  const [from,setFrom]=useState('');
+  const [to,setTo]=useState('');
+  const [user,setUser]=useState('');
+  const [role,setRole]=useState('');
+  const [module,setModule]=useState('');
+  const [action,setAction]=useState('');
+  const [search,setSearch]=useState('');
+  const token=localStorage.getItem('vam_token')||'';
+
+  const configs={
+    state:{title:'State-wise Report',heads:['State / UT','Venues','Asset Quantity'],url:'/api/reports/state'},
+    district:{title:'District-wise Report',heads:['State / UT','District','Venues','Asset Quantity'],url:'/api/reports/district'},
+    venue:{title:'Venue-wise Report',heads:['State / UT','District','Venue ID','Venue Name','Asset Records','Asset Quantity'],url:'/api/reports/venue'},
+    user:{title:'User-wise Report',heads:['User','Email','Role','Activities','Last Activity'],url:'/api/reports/user'},
+    asset:{title:'Asset-wise Report',heads:['Venue ID','Venue Name','Asset ID','Asset Type','Category','Model','Serial','Invoice No','Invoice Date','Vendor','Qty','Status','Removal Asset','Removal Date'],url:'/api/reports/asset'},
+    letters:{title:'Asset Letters Report',heads:['Venue ID','Venue Name','Letter Date','File Name','MIME','Size','Uploaded By','Created At'],url:'/api/reports/letters'},
+    swapping:{title:'Swapping Report',heads:['Date / Time','Asset ID','From Venue','To Venue','Asset Type','Category','Model','Serial','Qty','Swapped By'],url:'/api/reports/swapping'},
+    activity:{title:'User Activity Log',heads:['Date / Time','User','Email','Role','Action','Module','Details','IP Address'],url:'/api/reports/user-log'}
+  };
+
+  const load=async()=>{
+    setBusy(true);setErr('');
+    try{
+      const c=configs[view];
+      const qs=new URLSearchParams();
+      if(view==='activity'){
+        if(from)qs.set('from',from);
+        if(to)qs.set('to',to);
+        if(user)qs.set('user',user);
+        if(role)qs.set('role',role);
+        if(module)qs.set('module',module);
+        if(action)qs.set('action',action);
+        if(search)qs.set('search',search);
+      }
+      const r=await fetch(`${API_BASE}${c.url}${qs.toString()?'?'+qs.toString():''}`,{headers:{Authorization:`Bearer ${token}`}});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||'Unable to load report');
+      setRows(Array.isArray(d)?d:[]);
+    }catch(e){setRows([]);setErr(e.message||'Unable to load report')}
+    finally{setBusy(false)}
+  };
+
+  useEffect(()=>{load()},[view,from,to,user,role,module,action,search]);
+
+  const dataRows=rows.map(x=>{
+    if(view==='state')return [x.state||'-',x.total_venues||0,x.total_assets||0];
+    if(view==='district')return [x.state||'-',x.district||'-',x.total_venues||0,x.total_assets||0];
+    if(view==='venue')return [x.state||'-',x.district||'-',x.venue_id||'-',x.venue_name||'-',x.asset_records||0,x.asset_quantity||0];
+    if(view==='user')return [x.user_name||'-',x.email||'-',x.role||'-',x.activities||0,x.last_activity||'-'];
+    if(view==='asset')return [x.venue_id||'-',x.venue_name||'-',x.asset_id||'-',x.asset_type||'-',x.category||'-',x.model_name||'-',x.serial_number||'-',x.invoice_no||'-',x.invoice_date||'-',x.vendor_name||'-',x.quantity||0,x.status||'-',x.removal_asset?'Yes':'No',x.removal_date||'-'];
+    if(view==='letters')return [x.venue_id||'-',x.venue_name||'-',x.letter_date||'-',x.file_name||'-',x.mime_type||'-',`${x.file_size||0} bytes`,x.uploaded_by||'-',x.created_at||'-'];
+    if(view==='swapping')return [x.swapped_at||'-',x.asset_id||'-',x.from_venue||x.from_venue_id||'-',x.to_venue||x.to_venue_id||'-',x.asset_type||'-',x.category||'-',x.model_name||'-',x.serial_number||'-',x.quantity||0,x.swapped_by||'-'];
+    return [x.created_at||'-',x.user_name||'-',x.email||'-',x.role||'-',x.action||'-',x.module||'-',x.details||'-',x.ip_address||'-'];
+  });
+
+  const csv=()=>{
+    const content=[configs[view].heads,...dataRows].map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(',')).join('\n');
+    const u=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8;'})),a=document.createElement('a');
+    a.href=u;a.download=`venue-asset-${view}-report.csv`;a.click();URL.revokeObjectURL(u);
+  };
+  const pdf=()=>downloadSimplePDF(`Venue Asset Manager - ${configs[view].title}`,configs[view].heads,dataRows,`venue-asset-${view}-report.pdf`);
+
+  return <Page title="Reports" sub="MySQL reports — State, District, Venue, User, Asset, Letters, Swapping and Activity" action={
+    <div className="report-actions"><button className="btn" onClick={csv}><Download size={16}/>Export CSV</button><button className="primary" onClick={pdf}><Download size={16}/>Download PDF</button></div>
+  }>
+    <div className="report-selector">
+      <b>Report</b>
+      <select value={view} onChange={e=>setView(e.target.value)}>
+        <option value="state">1. State-wise</option>
+        <option value="district">2. District-wise</option>
+        <option value="venue">3. Venue-wise</option>
+        <option value="user">4. User-wise</option>
+        <option value="asset">5. Asset-wise</option>
+        <option value="letters">6. Asset Letters</option>
+        <option value="swapping">7. Swapping Report</option>
+        <option value="activity">8. User Activity Log</option>
+      </select>
+    </div>
+    {view==='activity'&&<section className="panel">
+      <div className="form">
+        <label>Date From<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
+        <label>Date To<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>
+        <label>User<input value={user} onChange={e=>setUser(e.target.value)} placeholder="User / email"/></label>
+        <label>Role<input value={role} onChange={e=>setRole(e.target.value)} placeholder="Role"/></label>
+        <label>Module<input value={module} onChange={e=>setModule(e.target.value)} placeholder="Module"/></label>
+        <label>Action<input value={action} onChange={e=>setAction(e.target.value)} placeholder="Action"/></label>
+        <label className="wide">Search<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search activity details"/></label>
+      </div>
+    </section>}
+    {err&&<div className="err">{err}</div>}
+    {busy?<div className="empty">Loading report...</div>:<section className="panel"><h2>{configs[view].title}</h2><Table heads={configs[view].heads} rows={dataRows}/>{!dataRows.length&&<div className="empty">No records found.</div>}</section>}
+  </Page>
+}

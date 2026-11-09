@@ -1,0 +1,1250 @@
+﻿import React,{useEffect,useState} from 'react';import{createRoot}from'react-dom/client';import{BrowserRouter,useNavigate,Routes,Route,NavLink,Navigate}from'react-router-dom';import{LayoutDashboard,Building2,Package,BarChart3,Calculator as Calc,Users,LogOut,Plus,Trash2,Edit3,Search,Download,Upload,Menu,X,FileSpreadsheet,FileText,FileUp}from'lucide-react';import'./styles.css';
+const INDIA_STATES=['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Andaman and Nicobar Islands','Chandigarh','Dadra and Nagar Haveli and Daman and Diu','Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry'];
+const STATE_CODES={
+  'Andaman and Nicobar Islands':'35','Andhra Pradesh':'28','Arunachal Pradesh':'12','Assam':'18','Bihar':'10',
+  'Chandigarh':'4','Chhattisgarh':'22','Dadra and Nagar Haveli and Daman and Diu':'38','Delhi':'7','Goa':'30',
+  'Gujarat':'24','Haryana':'6','Himachal Pradesh':'2','Jammu and Kashmir':'1','Jharkhand':'20','Karnataka':'29',
+  'Kerala':'32','Ladakh':'37','Lakshadweep':'31','Madhya Pradesh':'23','Maharashtra':'27','Manipur':'14',
+  'Meghalaya':'17','Mizoram':'15','Nagaland':'13','Odisha':'21','Puducherry':'34','Punjab':'3','Rajasthan':'8',
+  'Sikkim':'11','Tamil Nadu':'33','Telangana':'36','Tripura':'16','Uttar Pradesh':'9','Uttarakhand':'5','West Bengal':'19'
+};
+const STATES=Object.fromEntries(INDIA_STATES.map(s=>[s,[]]));
+
+function extractList(payload){
+  if(Array.isArray(payload))return payload;
+  if(!payload||typeof payload!=='object')return [];
+  for(const k of ['data','result','results','records','items','districts','districtList','response']){
+    if(Array.isArray(payload[k]))return payload[k];
+    if(payload[k]&&typeof payload[k]==='object'){
+      for(const kk of ['data','result','results','districts','districtList'])if(Array.isArray(payload[k][kk]))return payload[k][kk];
+    }
+  }
+  for(const v of Object.values(payload))if(Array.isArray(v))return v;
+  return [];
+}
+
+function parseDistricts(text){
+  try{return extractList(JSON.parse(text));}catch{}
+  if(typeof DOMParser!=='undefined' && /<[^>]+>/.test(text)){
+    const xml=new DOMParser().parseFromString(text,'application/xml');
+    return [...xml.querySelectorAll('item,District,district')].map(node=>{
+      const attrs=Object.fromEntries([...node.attributes].map(a=>[a.name,a.value]));
+      const children=Object.fromEntries([...node.children].map(c=>[c.tagName,c.textContent.trim()]));
+      return {...attrs,...children};
+    });
+  }
+  return [];
+}
+
+async function getDistricts(stateCode){
+  const code=STATE_CODES[stateCode]||stateCode;
+  if(!code)return [];
+  const r=await fetch('/lgd-api/districtList?stateCode='+encodeURIComponent(code),{method:'POST',headers:{Accept:'application/json, text/plain, */*','Content-Type':'application/json'},body:'{}'});
+  if(!r.ok)throw new Error('District request failed: '+r.status);
+  const a=parseDistricts(await r.text());
+  return a.map(x=>({
+    code:String(x.code??x.lgdCode??x.entityCode??x.entityLGDCode??x.districtCode??x.district_code??x.DistrictCode??x.DISTRICT_CODE??''),
+    name:String(x.name??x.entityName??x.districtName??x.districtNameEnglish??x.district_name??x.district_name_english??x.DistrictName??x.DISTRICT_NAME??x.DISTRICT_NAME_ENGLISH??'').trim()
+  })).filter(x=>x.name).map(x=>({...x,code:x.code||x.name})).sort((a,b)=>a.name.localeCompare(b.name));
+}
+
+const CATS=['Printers','Desktops','Laptops','CPUs','Monitors','Keyboards','Mouse','UPS','Barcode Scanners','POS Machines','Gate Check Devices','Routers','Switches','Wi-Fi Access Points','Servers','CCTV Cameras','DVR/NVR','Projectors','Laser Projectors','Audio Systems','Dolby/Atmos Equipment','Ticketing Machines','Biometric Devices','Phones/Tablets','Other'];
+
+const MODELS={Printers:['Epson','HP','Canon','Brother','Zebra','Other'],Desktops:['Dell','HP','Lenovo','Acer','Asus','Other'],Laptops:['Dell','HP','Lenovo','Acer','Asus','Apple','Other'],CPUs:['Intel Core i3','Intel Core i5','Intel Core i7','Intel Core i9','AMD Ryzen 5','AMD Ryzen 7','Other'],Monitors:['Dell','HP','Lenovo','LG','Samsung','Acer','Other'],Keyboards:['Dell','HP','Lenovo','Logitech','Zebronics','Other'],Mouse:['Dell','HP','Lenovo','Logitech','Zebronics','Other'],UPS:['APC','Numeric','Microtek','V-Guard','Other']};
+
+const APP_ACCESS=[['dashboard','Dashboard'],['venues','Venues'],['assets','Assets'],['letters','Asset Letters'],['reports','Reports'],['calculator','GST Calc'],['users','Users']];
+const ROLE_ACCESS={Admin:APP_ACCESS.map(x=>x[0]),Manager:['dashboard','venues','assets','letters','reports','calculator'],Support:['dashboard','venues','assets','letters','reports','calculator'],'Venue User':['dashboard','venues','assets','letters']};
+const normalizeUser=u=>{if(!u)return u;const permissions=Array.isArray(u.permissions)?u.permissions:(ROLE_ACCESS[u.role]||ROLE_ACCESS.Support);return {...u,permissions:u.role==='Admin'?APP_ACCESS.map(x=>x[0]):permissions.filter(x=>APP_ACCESS.some(a=>a[0]===x))}};
+const userCan=(u,key)=>u?.role==='Admin'||(Array.isArray(u?.permissions)&&u.permissions.includes(key));
+
+
+const API_BASE=import.meta.env.VITE_API_URL||'';
+const get=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
+const put=(k,v)=>{localStorage.setItem(k,JSON.stringify(v));const map={'vam_users':'users','vam_venues':'venues','vam_assets':'assets'};const resource=map[k];const token=localStorage.getItem('vam_token');if(resource&&token){fetch(`${API_BASE}/api/sync/${resource}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(v)}).catch(()=>{});}};
+async function apiLogin(email,password){const r=await fetch(`${API_BASE}/api/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||'Login failed');return r.json();}
+async function hydrateFromServer(){const token=localStorage.getItem('vam_token');if(!token)return false;const r=await fetch(`${API_BASE}/api/bootstrap`,{headers:{Authorization:`Bearer ${token}`}});if(!r.ok)throw new Error('Server session expired');const d=await r.json();localStorage.setItem('vam_users',JSON.stringify(d.users||[]));localStorage.setItem('vam_venues',JSON.stringify(d.venues||[]));localStorage.setItem('vam_assets',JSON.stringify(d.assets||[]));localStorage.setItem('vam_letters',JSON.stringify(d.letters||[]));localStorage.setItem('vam_session',JSON.stringify(d.session||{}));return d;}
+const nextVenueId=list=>{let max=0;(list||[]).forEach(x=>{let m=String(x.venueId||'').match(/^VEN-(\d+)$/i);if(m)max=Math.max(max,Number(m[1]));});return `VEN-${String(max+1).padStart(4,'0')}`};
+const DEFAULT_ADMIN={id:'1',name:'Administrator',email:'admin@venueassetmanager.local',username:'admin@venueassetmanager.local',password:'admin123',role:'Admin',permissions:ROLE_ACCESS.Admin};
+const users=()=>{let list=get('vam_users',[DEFAULT_ADMIN]);if(!Array.isArray(list))list=[DEFAULT_ADMIN];let changed=false;list=list.map(x=>{const n=normalizeUser({...x,email:x.email||x.username,username:x.email||x.username});if(JSON.stringify(n)!==JSON.stringify(x))changed=true;return n});if(!list.some(x=>x.role==='Admin')){list=[DEFAULT_ADMIN,...list];changed=true}if(changed)put('vam_users',list);return list};
+function crc32(bytes){let c=~0;for(let i=0;i<bytes.length;i++){c^=bytes[i];for(let j=0;j<8;j++)c=(c>>>1)^((c&1)?0xEDB88320:0)}return(~c)>>>0}
+function u16(n){return new Uint8Array([n&255,(n>>>8)&255])}function u32(n){return new Uint8Array([n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255])}
+function concatBytes(parts){let n=parts.reduce((a,b)=>a+b.length,0),out=new Uint8Array(n),p=0;for(const x of parts){out.set(x,p);p+=x.length}return out}
+function zipStore(files){const enc=new TextEncoder(),locals=[],central=[];let offset=0;for(const [name,dataText] of files){const nameB=enc.encode(name),data=typeof dataText==='string'?enc.encode(dataText):dataText,crc=crc32(data),local=concatBytes([u32(0x04034b50),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(nameB.length),u16(0),nameB,data]);locals.push(local);central.push({nameB,crc,size:data.length,offset});offset+=local.length}const cd=central.map(x=>concatBytes([u32(0x02014b50),u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(x.crc),u32(x.size),u32(x.size),u16(x.nameB.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(x.offset),x.nameB]));const cdBytes=concatBytes(cd),localBytes=concatBytes(locals),end=concatBytes([u32(0x06054b50),u16(0),u16(0),u16(central.length),u16(central.length),u32(cdBytes.length),u32(localBytes.length),u16(0)]);return concatBytes([localBytes,cdBytes,end])}
+function xmlEsc(v){return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&apos;')}
+function excelCol(n){let s='';while(n){let r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26)}return s}
+function downloadExcel(filename,headers,rows){const all=[headers,...rows];const sheet=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${all.map((row,ri)=>`<row r="${ri+1}">${row.map((v,ci)=>`<c r="${excelCol(ci+1)}${ri+1}" t="inlineStr"><is><t>${xmlEsc(v)}</t></is></c>`).join('')}</row>`).join('')}</sheetData></worksheet>`;const files=[['[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'],['_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],['xl/workbook.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Venues" sheetId="1" r:id="rId1"/></sheets></workbook>'],['xl/_rels/workbook.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'],['xl/worksheets/sheet1.xml',sheet]];const bytes=zipStore(files),blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename.endsWith('.xlsx')?filename:`${filename}.xlsx`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+async function readZipEntries(buffer){const bytes=new Uint8Array(buffer),view=new DataView(buffer),dec=new TextDecoder(),out={};let p=0;while(p+4<=bytes.length){const sig=view.getUint32(p,true);if(sig===0x04034b50){const method=view.getUint16(p+8,true),csize=view.getUint32(p+18,true),nlen=view.getUint16(p+26,true),elen=view.getUint16(p+28,true),name=dec.decode(bytes.slice(p+30,p+30+nlen));const data=bytes.slice(p+30+nlen+elen,p+30+nlen+elen+csize);let raw;if(method===0)raw=data;else if(method===8){const ds=new DecompressionStream('deflate-raw');raw=new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer())}else throw new Error('Unsupported Excel compression method');out[name]=dec.decode(raw);p+=30+nlen+elen+csize}else if(sig===0x02014b50||sig===0x06054b50)break;else p++}return out}
+async function readExcelFile(file){const name=file.name.toLowerCase();if(name.endsWith('.xls')||name.endsWith('.html')){const text=await file.text();const doc=new DOMParser().parseFromString(text,'text/html');const table=doc.querySelector('table');if(!table)throw new Error('Excel file must contain a table.');return [...table.querySelectorAll('tr')].map(tr=>[...tr.children].map(c=>c.textContent.trim()))}const entries=await readZipEntries(await file.arrayBuffer());const xml=entries['xl/worksheets/sheet1.xml'];if(!xml)throw new Error('Invalid Excel file: worksheet not found.');const sheetDoc=new DOMParser().parseFromString(xml,'application/xml');let shared=[];if(entries['xl/sharedStrings.xml']){const ss=new DOMParser().parseFromString(entries['xl/sharedStrings.xml'],'application/xml');shared=[...ss.getElementsByTagName('si')].map(si=>[...si.getElementsByTagName('t')].map(t=>t.textContent).join(''))}const colIndex=ref=>{const letters=String(ref||'').replace(/\d+/g,'');let n=0;for(const ch of letters)n=n*26+ch.charCodeAt(0)-64;return Math.max(0,n-1)};return [...sheetDoc.getElementsByTagName('row')].map(row=>{const cells=[...row.getElementsByTagName('c')],out=[];for(const c of cells){const idx=colIndex(c.getAttribute('r'));const type=c.getAttribute('t');let value='';if(type==='s'){const v=c.getElementsByTagName('v')[0];value=shared[Number(v?.textContent||0)]||''}else if(type==='inlineStr'){value=[...c.getElementsByTagName('t')].map(t=>t.textContent).join('')}else{value=c.getElementsByTagName('v')[0]?.textContent||''}out[idx]=value}return out.map(x=>x??'')})}
+function Login(){const[e,setE]=useState(''),[p,setP]=useState(''),[err,setErr]=useState(''),[busy,setBusy]=useState(false),nav=useNavigate();const submit=async x=>{x.preventDefault();setErr('');if(!e.trim())return setErr('Email ID is required');if(!/^\S+@\S+\.\S+$/.test(e.trim()))return setErr('Enter a valid email ID');if(p.length<6||p.length>10)return setErr('Password must be 6 to 10 characters');setBusy(true);try{const localSnapshot={users:get('vam_users',[]),venues:get('vam_venues',[]),assets:get('vam_assets',[])};const r=await apiLogin(e.trim().toLowerCase(),p);localStorage.setItem('vam_token',r.token);localStorage.setItem('vam_session',JSON.stringify(normalizeUser(r.user)));const serverData=await hydrateFromServer();if(r.user?.role==='Admin'&&(!serverData.venues?.length&&!serverData.assets?.length)&&(localSnapshot.venues?.length||localSnapshot.assets?.length)){const mr=await fetch(`${API_BASE}/api/migrate-local`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${r.token}`},body:JSON.stringify(localSnapshot)});if(mr.ok)await hydrateFromServer()}nav('/dashboard')}catch(ex){try{const a=users().find(z=>String(z.email||z.username).toLowerCase()===e.trim().toLowerCase()&&String(z.password)===p);if(!a)throw ex;localStorage.removeItem('vam_token');put('vam_session',normalizeUser(a));nav('/dashboard')}catch{setErr(ex?.message||'Invalid email or password')}}finally{setBusy(false)}};return <div className="login"><div className="loginbox"><div className="logo">VA</div><h1>Venue Asset Manager</h1><p>Asset tracking Ã¢â‚¬Â¢ All India</p><form onSubmit={submit}><label>Email ID<input type="email" value={e} onChange={x=>setE(x.target.value)} placeholder="Enter email ID" autoComplete="username" required/></label><label>Password<input type="password" value={p} onChange={x=>setP(x.target.value)} placeholder="6Ã¢â‚¬â€œ10 characters" minLength={6} maxLength={10} autoComplete="current-password" required/></label>{err&&<div className="err">{err}</div>}<button className="primary full" disabled={busy}>{busy?'Signing inÃ¢â‚¬Â¦':'Login'}</button></form></div></div>}
+
+function Layout(){const nav=useNavigate(),[m,setM]=useState(false),s=normalizeUser(get('vam_session')),links=APP_ACCESS.filter(([key])=>userCan(s,key)).map(([key,label])=>{const icon={dashboard:LayoutDashboard,venues:Building2,assets:Package,reports:BarChart3,calculator:Calc,users:Users,letters:FileText}[key];return [label,'/'+(key==='calculator'?'calculator':key),icon]});return <div className="app"><aside className={m?'side open':'side'}><div className="brand"><b>VA</b><span>Venue Asset<br/>Manager</span></div>{links.map(([n,p,I])=><NavLink onClick={()=>setM(false)} className={({isActive})=>isActive?'nav active':'nav'} to={p} key={p}><I size={18}/>{n}</NavLink>)}<button className="logout" onClick={()=>{localStorage.removeItem('vam_session');localStorage.removeItem('vam_token');nav('/login')}}><LogOut size={18}/>Logout</button></aside>{m&&<div className="overlay" onClick={()=>setM(false)}/>}<main className="main"><header><button className="mobile" onClick={()=>setM(true)}><Menu/></button><b>Asset Operations</b><span>{s?.name} Ã¢â‚¬Â¢ {s?.role}</span></header><div className="content"><Routes><Route path="/dashboard" element={userCan(s,'dashboard')?<Dashboard/>:<Navigate to="/login" replace/>}/><Route path="/venues" element={userCan(s,'venues')?<Venues/>:<Navigate to="/dashboard" replace/>}/><Route path="/assets" element={userCan(s,'assets')?<Assets/>:<Navigate to="/dashboard" replace/>}/><Route path="/letters" element={userCan(s,'letters')?<AssetLetters/>:<Navigate to="/dashboard" replace/>}/><Route path="/reports" element={userCan(s,'reports')?<Reports/>:<Navigate to="/dashboard" replace/>}/><Route path="/calculator" element={<Calculator/>}/><Route path="/users" element={<UsersPage/>}/><Route path="*" element={<Navigate to="/dashboard"/>}/></Routes></div></main></div>}
+
+function Modal({title,close,children}){
+  return <div className="modalbg">
+    <div className="modal">
+      <div className="modalhead">
+        <h2>{title}</h2>
+        <button onClick={close}><X/></button>
+      </div>
+      {children}
+    </div>
+  </div>
+}
+
+function Actions({close,ok}){
+  return <div className="actions">
+    <button className="btn" onClick={close}>Cancel</button>
+    <button className="primary" onClick={ok}>Save</button>
+  </div>
+}
+function Table({heads,rows}){
+  return <div className="table">
+    <table>
+      <thead>
+        <tr>{heads.map((h,i)=><th key={i}>{h}</th>)}</tr>
+      </thead>
+      <tbody>
+        {rows.map((r,i)=><tr key={i}>
+          {r.map((x,j)=><td key={j}>{x}</td>)}
+        </tr>)}
+      </tbody>
+    </table>
+    {!rows.length&&<Empty/>}
+  </div>
+}
+function Page({title,sub,action,children}){return <><div className="title"><div><h1>{title}</h1><p>{sub}</p></div>{action}</div>{children}</>}function Stat({n,v}){return <div className="stat"><small>{n}</small><strong>{v}</strong></div>}
+
+function Dashboard(){let v=get('vam_venues'),a=get('vam_assets'),qty=a.reduce((n,x)=>n+Number(x.quantity),0);return <Page title="Dashboard" sub="Overall venue and asset inventory"><div className="cards"><Stat n="Total Venues" v={v.length}/><Stat n="Asset Records" v={a.length}/><Stat n="Total Quantity" v={qty}/><Stat n="States Covered" v={[...new Set(v.map(x=>x.state))].length}/></div><div className="grid"><section className="panel"><h2>State-wise Venues</h2>{Object.keys(STATES).map(s=><div className="row" key={s}><span>{s}</span><b>{v.filter(x=>x.state===s).length}</b></div>)}</section><section className="panel"><h2>Latest Venues</h2>{v.slice(-8).reverse().map(x=><div className="row" key={x.id}><span><b>{x.name}</b><small>{x.district}, {x.state}</small></span><b>Updated</b></div>)}{!v.length&&<Empty/>}</section></div></Page>}
+
+function Empty(){return <div className="empty">No records yet.</div>}
+
+function Venues(){
+  const [v,setV]=useState(()=>get('vam_venues',[]));
+  const [q,setQ]=useState(''),[edit,setEdit]=useState(null),[show,setShow]=useState(false),[bulk,setBulk]=useState(false);
+  const session=get('vam_session',{});
+  const filtered=v.filter(x=>(x.venueId+' '+x.name+' '+x.district+' '+x.location+' '+x.state).toLowerCase().includes(q.toLowerCase()));
+  const save=x=>{
+    const clean={...x,venueId:String(x.venueId||'').trim().toUpperCase(),name:String(x.name||'').trim(),state:String(x.state||'').trim(),district:String(x.district||'').trim(),location:String(x.location||'').trim(),updatedBy:session?.name||session?.email||'Unknown'};
+    if(!clean.venueId)return alert('Venue ID is required');
+    if(!clean.name)return alert('Venue Name is required');
+    if(!clean.state)return alert('State / UT is required');
+    if(!clean.district)return alert('District is required');
+    if(!clean.location)return alert('Location is required');
+    if(v.some(y=>y.venueId===clean.venueId&&y.id!==clean.id))return alert('Venue ID already exists. Please use a unique Venue ID.');
+    const list=edit?v.map(y=>y.id===clean.id?clean:y):[...v,{...clean,id:globalThis.crypto?.randomUUID?.() || ('id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10)),createdBy:clean.updatedBy}];
+    put('vam_venues',list);setV(list);setShow(false);setEdit(null);
+  };
+  const editVenue=x=>{setEdit(x);setShow(true)};
+  const removeVenue=x=>{if(confirm('Delete venue?')){const list=v.filter(y=>y.id!==x.id);put('vam_venues',list);setV(list)}};
+  const downloadTemplate=()=>downloadExcel('venue-master.xlsx',['Venue ID','Venue','State / UT','District','Location'],v.map(x=>[x.venueId,x.name,x.state,x.district,x.location]));
+  const uploadExcel=async file=>{
+    try{
+      const rows=await readExcelFile(file);const headers=rows.shift().map(x=>String(x).trim().toLowerCase());const idx=k=>headers.indexOf(k);
+      const required=['venue id','venue','state / ut','district','location'];
+      if(required.some(k=>idx(k)<0))throw new Error('Required columns: Venue ID, Venue, State / UT, District, Location');
+      const imported=rows.filter(r=>r.some(Boolean)).map(r=>({venueId:String(r[idx('venue id')]||'').trim().toUpperCase(),name:String(r[idx('venue')]||'').trim(),state:String(r[idx('state / ut')]||'').trim(),district:String(r[idx('district')]||'').trim(),location:String(r[idx('location')]||'').trim()}));
+      const bad=imported.findIndex(x=>!x.venueId||!x.name||!x.state||!x.district||!x.location);
+      if(bad>=0)throw new Error(`Row ${bad+2}: Venue ID, Venue, State / UT, District and Location are mandatory.`);
+      const merged=[...v];
+      for(const row of imported){const i=merged.findIndex(x=>x.venueId===row.venueId);if(i>=0)merged[i]={...merged[i],...row,updatedBy:session?.name||session?.email||'Unknown'};else merged.push({...row,id:globalThis.crypto?.randomUUID?.() || ('id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10)),createdBy:session?.name||session?.email||'Unknown',updatedBy:session?.name||session?.email||'Unknown'})}
+      put('vam_venues',merged);setV(merged);alert(`${imported.length} venue row(s) uploaded successfully.`);setBulk(false);
+    }catch(ex){alert(ex.message||'Unable to read Excel file.')}
+  };
+  const actionButtons=x=>React.createElement('div',{className:'table-actions'},React.createElement('button',{className:'icon',onClick:editVenue.bind(null,x)},React.createElement(Edit3,{size:15})),React.createElement('button',{className:'icon danger',onClick:removeVenue.bind(null,x)},React.createElement(Trash2,{size:15})));
+  return <Page title="Venues" sub="All India: State / UT Ã¢â€ â€™ District" action={<div className="action-group"><button className="btn" onClick={downloadTemplate}><FileSpreadsheet size={16}/>Download Excel</button><button className="btn" onClick={()=>setBulk(true)}><Upload size={16}/>Upload Excel</button><button className="primary" onClick={()=>setShow(true)}><Plus size={17}/>Add Venue</button></div>}>
+    <div className="toolbar"><div className="search"><Search size={16}/><input placeholder="Search Venue ID / venue / district / location / state" value={q} onChange={e=>setQ(e.target.value)}/></div></div>
+    <Table heads={['Venue ID','Venue','State / UT','District','Location','Assets','Actions']} rows={filtered.map(x=>[<span className="pill">{x.venueId}</span>,<b>{x.name}</b>,x.state,x.district,x.location,get('vam_assets').filter(a=>a.venueId===x.id).reduce((n,a)=>n+Number(a.quantity||0),0),actionButtons(x)])}/>
+    {show&&<VenueModal initial={edit} existing={v} save={save} close={()=>{setShow(false);setEdit(null)}}/>}
+    {bulk&&<Modal title="Bulk Venue Update Ã¢â‚¬â€ Excel" close={()=>setBulk(false)}><div className="bulk-info"><b>Excel columns</b><p>Venue ID | Venue | State / UT | District | Location</p><p>Download the current venue list, edit these columns in Excel, then upload the file. Existing Venue IDs are updated; new Venue IDs are added.</p></div><input type="file" accept=".xls,.xlsx,.html" onChange={e=>{const file=e.target.files?.[0];if(file)uploadExcel(file)}}/><div className="actions"><button className="btn" onClick={()=>setBulk(false)}>Close</button></div></Modal>}
+  </Page>
+}
+
+function VenueModal({initial,existing=[],save,close}){const [f,setF]=useState(initial||{venueId:nextVenueId(existing),name:'',state:'',stateCode:'',district:'',districtCode:'',location:'',address:''});const states=INDIA_STATES.map(name=>({code:STATE_CODES[name]||name,name}));const chooseState=e=>{const x=states.find(s=>String(s.code)===e.target.value);setF(z=>({...z,state:x?.name||'',stateCode:x?.code||'',districtCode:''}))};return <Modal title={initial?'Edit Venue':'Create Venue'} close={close}><div className="form"><label>Venue ID<input value={f.venueId} onChange={e=>setF({...f,venueId:e.target.value.toUpperCase()})} placeholder="VEN-0001" required/></label><label>Venue Name<input value={f.name} onChange={e=>setF({...f,name:e.target.value})} placeholder="Enter venue name" required/></label><label>State / UT<select value={f.stateCode||STATE_CODES[f.state]||''} onChange={chooseState} required><option value="">Select State / UT</option>{states.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}</select></label><label>District<input value={f.district||''} onChange={e=>setF({...f,district:e.target.value})} placeholder="Enter district name" required/></label><label>Location<input value={f.location||''} onChange={e=>setF({...f,location:e.target.value})} placeholder="Enter location / area" required/></label><label className="wide">Address<textarea value={f.address||''} onChange={e=>setF({...f,address:e.target.value})} placeholder="Enter full address (optional)"/></label></div><Actions close={close} ok={()=>save(f)}/></Modal>}
+
+function VenueAssetSwapping({close}){
+  const swapUser=get('vam_session',{});
+  const venues=get('vam_venues',[]);
+  const [currentVenue,setCurrentVenue]=useState('');
+  const [newVenue,setNewVenue]=useState('');
+  const [assets,setAssets]=useState([]);
+  const [selected,setSelected]=useState([]);
+  const [loading,setLoading]=useState(false);
+  const [busy,setBusy]=useState(false);
+
+  const token=get('vam_token','');
+
+  const loadAssets=async(id)=>{
+    setCurrentVenue(id);
+    setSelected([]);
+    setAssets([]);
+
+    if(!id) return;
+
+    setLoading(true);
+
+    try{
+      const r=await fetch('/api/assets/venue-swap/'+encodeURIComponent(id),{
+        headers:{Authorization:'Bearer '+token}
+      });
+
+      const data=await r.json();
+
+      if(!r.ok){
+        throw new Error(data.error||'Unable to load assets');
+      }
+
+      setAssets(Array.isArray(data.assets)?data.assets:[]);
+    }catch(e){
+      alert(e.message);
+    }finally{
+      setLoading(false);
+    }
+  };
+
+  const toggle=id=>{
+    setSelected(s =>
+      s.includes(id)
+        ? s.filter(x=>x!==id)
+        : [...s,id]
+    );
+  };
+
+  const selectAll=()=>{
+    if(selected.length===assets.length){
+      setSelected([]);
+    }else{
+      setSelected(assets.map(x=>x.id));
+    }
+  };
+
+  const transfer=async()=>{
+    if(!currentVenue){
+      return alert('Select Current Venue ID');
+    }
+
+    if(!newVenue){
+      return alert('Select New Venue ID');
+    }
+
+    if(currentVenue===newVenue){
+      return alert('Current Venue and New Venue cannot be the same');
+    }
+
+    if(!selected.length){
+      return alert('Select at least one asset');
+    }
+
+    const current=venues.find(x=>x.id===currentVenue);
+    const target=venues.find(x=>x.id===newVenue);
+
+    const confirmed=confirm(
+      'Transfer '+selected.length+
+      ' selected asset(s) from '+
+      (current?.venueId||current?.name||currentVenue)+
+      ' to '+
+      (target?.venueId||target?.name||newVenue)+
+      '?'
+    );
+
+    if(!confirmed) return;
+
+    setBusy(true);
+
+    try{
+      const r=await fetch('/api/assets/venue-swap',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          Authorization:'Bearer '+token
+        },
+        body:JSON.stringify({
+          currentVenueId:currentVenue,
+          newVenueId:newVenue,
+          assetIds:selected,
+          swappedBy:swapUser?.name||swapUser?.email||'Unknown'
+        })
+      });
+
+      const data=await r.json();
+
+      if(!r.ok){
+        throw new Error(data.error||'Venue asset transfer failed');
+      }
+
+      const local=get('vam_assets',[]);
+
+      const updated=local.map(x =>
+        selected.includes(x.id)
+          ? {
+              ...x,
+              venueId:newVenue,
+              venueName:target?.name||x.venueName||''
+            }
+          : x
+      );
+
+      put('vam_assets',updated);
+
+      alert(
+        'Successfully transferred '+
+        (data.transferred||selected.length)+
+        ' asset(s).'
+      );
+
+      await loadAssets(currentVenue);
+
+    }catch(e){
+      alert(e.message);
+    }finally{
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Venue Asset Swapping" close={close}>
+
+      <div className="form-grid">
+
+        <label>
+          Current Venue ID
+          <select
+            value={currentVenue}
+            onChange={e=>loadAssets(e.target.value)}
+          >
+            <option value="">Select Current Venue</option>
+
+            {venues.map(x=>(
+              <option key={x.id} value={x.id}>
+                {x.venueId} — {x.name}
+              </option>
+            ))}
+
+          </select>
+        </label>
+
+        <label>
+          New Venue ID
+          <select
+            value={newVenue}
+            onChange={e=>setNewVenue(e.target.value)}
+          >
+            <option value="">Select New Venue</option>
+
+            {venues
+              .filter(x=>x.id!==currentVenue)
+              .map(x=>(
+                <option key={x.id} value={x.id}>
+                  {x.venueId} — {x.name}
+                </option>
+              ))}
+
+          </select>
+        </label>
+
+      </div>
+
+      {currentVenue&&(
+        <div className="asset-note" style={{marginTop:16}}>
+          <b>{assets.length}</b> active asset record(s) found.
+          {' '}Asset Letters are not transferred.
+        </div>
+      )}
+
+      {loading&&(
+        <div className="empty">
+          Loading assets...
+        </div>
+      )}
+
+      {!loading&&currentVenue&&assets.length>0&&(
+        <>
+          <div
+            style={{
+              display:'flex',
+              alignItems:'center',
+              justifyContent:'space-between',
+              gap:12,
+              margin:'14px 0'
+            }}
+          >
+
+            <button
+              className="btn"
+              onClick={selectAll}
+              disabled={busy}
+            >
+              {selected.length===assets.length
+                ? 'Unselect All'
+                : 'Select All'}
+            </button>
+
+            <div>
+              Selected: <b>{selected.length}</b> / {assets.length}
+            </div>
+
+          </div>
+
+          <div style={{overflowX:'auto'}}>
+
+            <table className="table">
+
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Asset ID</th>
+                  <th>Asset Type</th>
+                  <th>Category</th>
+                  <th>Model Name</th>
+                  <th>Serial Number</th>
+                  <th>Quantity</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+
+              <tbody>
+
+                {assets.map(x=>(
+                  <tr key={x.id}>
+
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(x.id)}
+                        onChange={()=>toggle(x.id)}
+                        disabled={busy}
+                      />
+                    </td>
+
+                    <td>{x.id}</td>
+                    <td>{x.assetType||''}</td>
+                    <td>{x.category||''}</td>
+                    <td>{x.model||''}</td>
+                    <td>{x.serial||''}</td>
+                    <td>{x.quantity||0}</td>
+                    <td>{x.status||''}</td>
+
+                  </tr>
+                ))}
+
+              </tbody>
+
+            </table>
+
+          </div>
+        </>
+      )}
+
+      {!loading&&currentVenue&&!assets.length&&(
+        <div className="empty">
+          No active assets found for this venue.
+        </div>
+      )}
+
+      <div
+        style={{
+          display:'flex',
+          justifyContent:'flex-end',
+          gap:10,
+          marginTop:18
+        }}
+      >
+
+        <button
+          className="btn"
+          onClick={close}
+          disabled={busy}
+        >
+          Cancel
+        </button>
+
+        <button
+          className="primary"
+          onClick={transfer}
+          disabled={busy||!selected.length||!newVenue}
+        >
+          {busy
+            ? 'Transferring...'
+            : 'Transfer Selected Assets'}
+        </button>
+
+      </div>
+
+    </Modal>
+  );
+}
+function Assets(){
+  const [a,setA]=useState(get('vam_assets',[]));
+  const v=get('vam_venues',[]);
+  const [show,setShow]=useState(false);
+  const [edit,setEdit]=useState(null);
+  const [q,setQ]=useState('');
+  const [cat,setCat]=useState('All');
+  const [selectedVenue,setSelectedVenue]=useState('');
+  const [venueSwap,setVenueSwap]=useState(false);
+
+  const filtered=a.filter(x=>{
+    const search=[
+      x.venueName||'',
+      x.category||'',
+      x.model||'',
+      x.serial||'',
+      x.assetType||'',
+      x.invoiceNo||'',
+      x.vendorName||'',
+      x.status||''
+    ].join(' ').toLowerCase();
+
+    return (
+      (!selectedVenue || x.venueId===selectedVenue) &&
+      (cat==='All' || x.category===cat) &&
+      search.includes(q.toLowerCase())
+    );
+  });
+
+  const save=x=>{
+    const vn=v.find(z=>z.id===x.venueId);
+    const session=get('vam_session',{});
+
+    const clean={
+      ...x,
+      venueName:vn?.name||'',
+      assetType:x.assetType||'Own',
+      category:x.category||'',
+      model:x.model||'',
+      serial:x.assetType==='Rental'?'':(x.serial||''),
+      quantity:Number(x.quantity||1),
+      status:x.status||'',
+      invoiceNo:x.assetType==='Own'?(x.invoiceNo||''):'',
+      invoiceDate:x.assetType==='Own'?(x.invoiceDate||''):'',
+      vendorName:x.assetType==='Own'?(x.vendorName||''):'',
+      removed:x.assetType==='Rental'?!!x.removed:false,
+      removalDate:x.assetType==='Rental'?(x.removalDate||''):'',
+      updatedBy:session?.name||session?.email||'Unknown'
+    };
+
+    if(!clean.venueId){
+      return alert('Venue is required');
+    }
+
+    if(!clean.category){
+      return alert('Category is required');
+    }
+
+    if(!String(clean.model||'').trim()){
+      return alert('Model Name is required');
+    }
+
+    if(!clean.quantity || clean.quantity<1 || clean.quantity>25){
+      return alert('Quantity must be 1 to 25');
+    }
+
+    if(!clean.status){
+      return alert('Status is required');
+    }
+
+    if(clean.assetType==='Own' && !String(clean.serial||'').trim()){
+      return alert('Serial Number is required for Own Asset');
+    }
+
+    if(clean.assetType==='Own' && !String(clean.invoiceNo||'').trim()){
+      return alert('Invoice No is required for Own Asset');
+    }
+
+    if(clean.assetType==='Own' && !String(clean.invoiceDate||'').trim()){
+      return alert('Invoice Date is required for Own Asset');
+    }
+
+    if(clean.assetType==='Own' && !String(clean.vendorName||'').trim()){
+      return alert('Vendor Name is required for Own Asset');
+    }
+
+    if(clean.assetType==='Rental' && clean.removed && !clean.removalDate){
+      return alert('Removal Date is required when Removal Asset is selected');
+    }
+
+    const list=edit
+      ? a.map(y=>y.id===x.id?clean:y)
+      : [...a,{
+          ...clean,
+          id:globalThis.crypto?.randomUUID?.() || ('id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10)),
+          createdBy:clean.updatedBy
+        }];
+
+    put('vam_assets',list);
+    setA(list);
+    setShow(false);
+    setEdit(null);
+  };
+
+  const editAsset=x=>{
+    setEdit(x);
+    setShow(true);
+  };
+
+  const removeAsset=x=>{
+    if(confirm('Delete this asset record?')){
+      const list=a.filter(y=>y.id!==x.id);
+      put('vam_assets',list);
+      setA(list);
+    }
+  };
+
+  const actionButtons=x=>React.createElement(
+    'div',
+    {className:'table-actions'},
+    React.createElement(
+      'button',
+      {
+        className:'icon',
+        title:'Edit',
+        onClick:editAsset.bind(null,x)
+      },
+      React.createElement(Edit3,{size:15})
+    ),
+    React.createElement(
+      'button',
+      {
+        className:'icon danger',
+        title:'Delete',
+        onClick:removeAsset.bind(null,x)
+      },
+      React.createElement(Trash2,{size:15})
+    )
+  );
+
+  const venueClick=id=>{
+    setSelectedVenue(id);
+    setQ('');
+    setCat('All');
+  };
+
+  return (
+    <Page
+      title="Asset Inventory"
+      sub="Own and Rental Asset Tracking — MySQL"
+      action={
+        <div style={{display:'flex',gap:8}}>
+          <button
+            className="primary"
+            onClick={()=>{
+              setEdit(null);
+              setShow(true);
+            }}
+          >
+            <Plus size={17}/>Add Asset
+          </button>
+
+          <button
+            className="btn"
+            onClick={()=>setVenueSwap(true)}
+          >
+            Venue Swapping
+          </button>        </div>
+      }
+    >
+      <div className="toolbar">
+        <div className="search">
+          <Search size={16}/>
+          <input
+            placeholder="Search venue, model, serial, invoice, vendor"
+            value={q}
+            onChange={e=>setQ(e.target.value)}
+          />
+        </div>
+
+        <select
+          value={selectedVenue}
+          onChange={e=>setSelectedVenue(e.target.value)}
+        >
+          <option value="">All Venues</option>
+          {v.map(x=>(
+            <option key={x.id} value={x.id}>
+              {x.venueId} — {x.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={cat}
+          onChange={e=>setCat(e.target.value)}
+        >
+          <option value="All">All Categories</option>
+          {CATS.map(c=>(
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
+      {selectedVenue&&(
+        <div className="asset-note">
+          Showing {filtered.reduce((n,x)=>n+Number(x.quantity||0),0)} asset(s) for{' '}
+          <b>{v.find(x=>x.id===selectedVenue)?.name||'selected venue'}</b>.
+          {' '}
+          <button
+            className="btn"
+            onClick={()=>setSelectedVenue('')}
+          >
+            Clear Venue
+          </button>
+        </div>
+      )}
+
+      <Table
+        heads={[
+          'Venue ID',
+          'Venue',
+          'Asset Type',
+          'Category',
+          'Model Name',
+          'Serial Number',
+          'Invoice No',
+          'Invoice Date',
+          'Vendor Name',
+          'Qty',
+          'Status',
+          'Removal Asset',
+          'Removal Date',
+          'Actions'
+        ]}
+        rows={filtered.map(x=>{
+          const vn=v.find(z=>z.id===x.venueId)||{};
+
+          return [
+            <button
+              className="link-btn"
+              onClick={()=>venueClick(x.venueId)}
+              title="Show all assets for this Venue ID"
+            >
+              {vn.venueId||'-'}
+            </button>,
+
+            x.venueName||vn.name||'-',
+
+            x.assetType||'Own',
+
+            <span className="pill">
+              {x.category||'-'}
+            </span>,
+
+            x.model||'-',
+
+            x.assetType==='Rental'
+              ? '—'
+              : (x.serial||'-'),
+
+            x.assetType==='Own'
+              ? (x.invoiceNo||'-')
+              : '—',
+
+            x.assetType==='Own'
+              ? (x.invoiceDate||'-')
+              : '—',
+
+            x.assetType==='Own'
+              ? (x.vendorName||'-')
+              : '—',
+
+            x.quantity||0,
+
+            x.status||'-',
+
+            x.assetType==='Rental'
+              ? (x.removed?'Yes':'No')
+              : '—',
+
+            x.assetType==='Rental'
+              ? (x.removalDate||'-')
+              : '—',
+
+            actionButtons(x)
+          ];
+        })}
+      />
+
+      {show&&(
+        <AssetModal
+          initial={edit}
+          venues={v}
+          save={save}
+          close={()=>{
+            setShow(false);
+            setEdit(null);
+          }}
+        />
+      )}
+          {venueSwap&&
+        <VenueAssetSwapping
+          close={()=>setVenueSwap(false)}
+        />
+      }
+</Page>
+  );
+}
+
+function AssetModal({initial,venues,save,close}){
+  const [f,setF]=useState(
+    initial||{
+      venueId:venues[0]?.id||'',
+      assetType:'Own',
+      category:'Printers',
+      model:'',
+      serial:'',
+      quantity:1,
+      status:'',
+      invoiceNo:'',
+      invoiceDate:'',
+      vendorName:'',
+      removed:false,
+      removalDate:''
+    }
+  );
+
+  const rental=f.assetType==='Rental';
+  const opts=MODELS[f.category]||[];
+
+  const statusOptions=[
+    'Working',
+    'Not Working',
+    'Asset in Venue',
+    'Not Using',
+    'Removed'
+  ];
+
+  const changeType=type=>{
+    setF({
+      ...f,
+      assetType:type,
+      serial:type==='Rental'?'':f.serial,
+      invoiceNo:type==='Rental'?'':f.invoiceNo,
+      invoiceDate:type==='Rental'?'':f.invoiceDate,
+      vendorName:type==='Rental'?'':f.vendorName,
+      removed:type==='Rental'?!!f.removed:false,
+      removalDate:type==='Rental'?(f.removalDate||''):''
+    });
+  };
+
+  return (
+    <Modal
+      title={initial?'Edit Asset':'Add Asset'}
+      close={close}
+    >
+      <div className="asset-type-switch">
+        <button
+          type="button"
+          className={f.assetType==='Own'?'active':''}
+          onClick={()=>changeType('Own')}
+        >
+          Own Asset
+        </button>
+
+        <button
+          type="button"
+          className={f.assetType==='Rental'?'active':''}
+          onClick={()=>changeType('Rental')}
+        >
+          Rental Asset
+        </button>
+      </div>
+
+      <div className="form">
+
+        <label>
+          Venue
+          <select
+            value={f.venueId}
+            onChange={e=>setF({...f,venueId:e.target.value})}
+            required
+          >
+            {venues.map(v=>(
+              <option key={v.id} value={v.id}>
+                {v.venueId} — {v.name} — {v.district}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Asset Type
+          <input
+            value={f.assetType==='Own'?'Own':'Rental'}
+            readOnly
+          />
+        </label>
+
+        <label>
+          Category
+          <select
+            value={f.category}
+            onChange={e=>setF({
+              ...f,
+              category:e.target.value,
+              model:''
+            })}
+            required
+          >
+            {CATS.map(c=>(
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Model Name
+          {opts.length ? (
+            <select
+              value={f.model||''}
+              onChange={e=>setF({...f,model:e.target.value})}
+              required
+            >
+              <option value="">Select Model</option>
+              {opts.map(o=>(
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={f.model||''}
+              onChange={e=>setF({...f,model:e.target.value})}
+              placeholder="Enter model name"
+              required
+            />
+          )}
+        </label>
+
+        {!rental&&(
+          <label>
+            Serial Number
+            <input
+              value={f.serial||''}
+              onChange={e=>setF({...f,serial:e.target.value})}
+              placeholder="Enter serial number"
+              required
+            />
+          </label>
+        )}
+
+        <label>
+          Quantity
+          <input
+            type="number"
+            min="1"
+            max="25"
+            value={f.quantity}
+            onChange={e=>setF({
+              ...f,
+              quantity:Math.min(
+                25,
+                Math.max(1,Number(e.target.value)||1)
+              )
+            })}
+            required
+          />
+        </label>
+
+        <label>
+          Status
+          <select
+            value={f.status||''}
+            onChange={e=>setF({
+              ...f,
+              status:e.target.value
+            })}
+            required
+          >
+            <option value="">Select Status</option>
+            {statusOptions.map(o=>(
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+
+        {!rental&&(
+          <>
+            <label>
+              Invoice No
+              <input
+                value={f.invoiceNo||''}
+                onChange={e=>setF({
+                  ...f,
+                  invoiceNo:e.target.value
+                })}
+                placeholder="Invoice number"
+                required
+              />
+            </label>
+
+            <label>
+              Invoice Date
+              <input
+                type="date"
+                value={f.invoiceDate||''}
+                onChange={e=>setF({
+                  ...f,
+                  invoiceDate:e.target.value
+                })}
+                required
+              />
+            </label>
+
+            <label>
+              Vendor Name
+              <input
+                value={f.vendorName||''}
+                onChange={e=>setF({
+                  ...f,
+                  vendorName:e.target.value
+                })}
+                placeholder="Vendor name"
+                required
+              />
+            </label>
+          </>
+        )}
+
+        {rental&&(
+          <>
+            <label className="wide">
+              <span>Removal Asset</span>
+              <input
+                type="checkbox"
+                checked={!!f.removed}
+                onChange={e=>setF({
+                  ...f,
+                  removed:e.target.checked,
+                  status:e.target.checked?'Removed':f.status
+                })}
+              />
+            </label>
+
+            {f.removed&&(
+              <label>
+                Removal Date
+                <input
+                  type="date"
+                  value={f.removalDate||''}
+                  onChange={e=>setF({
+                    ...f,
+                    removalDate:e.target.value
+                  })}
+                  required
+                />
+              </label>
+            )}
+          </>
+        )}
+
+      </div>
+
+      <div className="asset-note">
+        {rental
+          ? 'Rental Asset: Venue, Category, Model Name, Quantity, Status and optional Removal Asset / Removal Date.'
+          : 'Own Asset: Venue, Category, Model Name, Serial Number, Invoice No, Invoice Date, Vendor Name, Quantity and Status.'
+        }
+      </div>
+
+      <Actions
+        close={close}
+        ok={()=>save(f)}
+      />
+    </Modal>
+  );
+}
+function AssetLetters(){
+ const [letters,setLetters]=useState(get('vam_letters',[])),venues=get('vam_venues',[]),[venueId,setVenueId]=useState(venues[0]?.id||''),[date,setDate]=useState(new Date().toISOString().slice(0,10)),[file,setFile]=useState(null),[busy,setBusy]=useState(false);
+ useEffect(()=>{const t=localStorage.getItem('vam_token');if(t)fetch(`${API_BASE}/api/letters`,{headers:{Authorization:`Bearer ${t}`}}).then(r=>r.json()).then(x=>{if(Array.isArray(x)){setLetters(x);localStorage.setItem('vam_letters',JSON.stringify(x))}}).catch(()=>{})},[]);
+ const upload=async()=>{if(!venueId||!date||!file)return alert('Venue, date and file are required');setBusy(true);const reader=new FileReader();reader.onload=async()=>{try{const t=localStorage.getItem('vam_token');const r=await fetch(`${API_BASE}/api/letters`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${t}`},body:JSON.stringify({venueId,letterDate:date,fileName:file.name,mimeType:file.type,fileData:reader.result})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Upload failed');const rr=await fetch(`${API_BASE}/api/letters`,{headers:{Authorization:`Bearer ${t}`}});const list=await rr.json();setLetters(list);localStorage.setItem('vam_letters',JSON.stringify(list));setFile(null);document.getElementById('letter-file').value='';alert('Asset letter uploaded successfully')}catch(e){alert(e.message)}finally{setBusy(false)}};reader.readAsDataURL(file)};
+ const remove=async id=>{if(!confirm('Delete this asset letter?'))return;const t=localStorage.getItem('vam_token');const r=await fetch(`${API_BASE}/api/letters/${id}`,{method:'DELETE',headers:{Authorization:`Bearer ${t}`}});if(r.ok){const list=letters.filter(x=>x.id!==id);setLetters(list);localStorage.setItem('vam_letters',JSON.stringify(list))}};
+ return <Page title="Asset Letters" sub="Upload venue asset letters with date â€” files are stored in MySQL"><section className="panel"><h2>Upload Asset Letter</h2><div className="form"><label>Venue<select value={venueId} onChange={e=>setVenueId(e.target.value)}>{venues.map(v=><option key={v.id} value={v.id}>{v.venueId} â€” {v.name}</option>)}</select></label><label>Letter Date<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label><label className="wide">Letter File<input id="letter-file" type="file" accept="*/*" onChange={e=>setFile(e.target.files?.[0]||null)}/><small>PDF, JPG, JPEG, PNG, DOC, DOCX, XLS, XLSX, ZIP and other file formats. Maximum 30 MB.</small></label></div><button className="primary" disabled={busy} onClick={upload}><FileUp size={16}/>{busy?'Uploading...':'Upload Letter'}</button></section><section className="panel"><h2>Uploaded Letters</h2><Table heads={['Venue ID','Venue','Date','File','Size','Uploaded By','Actions']} rows={letters.map(x=>{const v=venues.find(z=>z.id===x.venueId)||{};return [v.venueId||'-',v.name||'-',x.letterDate||'-',x.fileName||'-',`${Math.ceil(Number(x.fileSize||0)/1024)} KB`,x.uploadedBy||'-',<div className="table-actions"><button className="icon" onClick={()=>{const t=localStorage.getItem('vam_token');fetch(`${API_BASE}/api/letters/${x.id}/download`,{headers:{Authorization:`Bearer ${t}`}}).then(r=>r.blob()).then(b=>{const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=x.fileName;a.click();URL.revokeObjectURL(u)})}}><Download size={15}/></button><button className="icon danger" onClick={()=>remove(x.id)}><Trash2 size={15}/></button></div>]})}/></section></Page>
+}
+
+function pdfEscape(value){return String(value??'').replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)').replace(/\r?\n/g,' ')}
+function downloadSimplePDF(title,headers,rows,filename){
+  const esc=pdfEscape;
+  const pageW=842,pageH=595,margin=28,top=555,bottom=28;
+  const usableW=pageW-margin*2;
+  const weights=headers.map((h,i)=>Math.max(String(h).length,...rows.map(r=>String(r[i]??'').length),4));
+  const total=weights.reduce((a,b)=>a+b,0);
+  const widths=weights.map(w=>usableW*w/total);
+  const fontSize=8,lineH=11,cellPad=4,headerH=22;
+  const wrap=(value,maxChars)=>{const t=String(value??'');if(!t)return [''];const out=[];let rest=t;while(rest.length>maxChars){let cut=rest.lastIndexOf(' ',maxChars);if(cut<1)cut=maxChars;out.push(rest.slice(0,cut));rest=rest.slice(cut).trim()}out.push(rest);return out};
+  const prepared=rows.map(r=>r.map((v,i)=>wrap(v,Math.max(4,Math.floor((widths[i]-cellPad*2)/(fontSize*0.52))))));
+  const pages=[];let current=[];let y=top-48;
+  const rowHeight=lines=>Math.max(headerH,lines*lineH+cellPad*2);
+  for(let i=0;i<prepared.length;i++){
+    const h=rowHeight(Math.max(...prepared[i].map(x=>x.length)));
+    if(y-h<bottom+28 && current.length){pages.push(current);current=[];y=top-48}
+    current.push({row:prepared[i],height:h});y-=h;
+  }
+  if(current.length||!pages.length)pages.push(current);
+  const objs=[];const add=o=>{objs.push(o);return objs.length};
+  const font=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  const pageIds=[],contentIds=[];
+  pages.forEach((items,pageIndex)=>{
+    let stream='q\n';
+    stream+=`BT\n/F1 15 Tf\n${margin} ${top} Td\n(${esc(title)}) Tj\nET\n`;
+    stream+=`BT\n/F1 8 Tf\n${margin} ${top-16} Td\n(Generated: ${esc(new Date().toLocaleString())}) Tj\nET\n`;
+    let y=top-48;
+    const xPositions=[margin];for(const w of widths)xPositions.push(xPositions[xPositions.length-1]+w);
+    // Header background and border
+    stream+=`0.93 g ${margin} ${y-headerH} ${usableW} ${headerH} re f 0 g\n`;
+    stream+=`0.55 w ${margin} ${y-headerH} ${usableW} ${headerH} re S\n`;
+    stream+='BT\n/F1 8 Tf\n';
+    headers.forEach((h,i)=>{const tx=xPositions[i]+cellPad,ty=y-15;stream+=`1 0 0 1 ${tx} ${ty} Tm (${esc(h)}) Tj\n`});
+    stream+='ET\n';
+    // Header vertical lines
+    for(let i=1;i<xPositions.length-1;i++)stream+=`0.55 w ${xPositions[i]} ${y-headerH} m ${xPositions[i]} ${y} l S\n`;
+    y-=headerH;
+    // Data rows with full grid lines
+    items.forEach(item=>{
+      const h=item.height;
+      stream+=`0.55 w ${margin} ${y-h} ${usableW} ${h} re S\n`;
+      for(let i=1;i<xPositions.length-1;i++)stream+=`${xPositions[i]} ${y-h} m ${xPositions[i]} ${y} l S\n`;
+      stream+='BT\n/F1 8 Tf\n';
+      item.row.forEach((cell,i)=>{
+        cell.forEach((line,j)=>{const tx=xPositions[i]+cellPad,ty=y-cellPad-9-j*lineH;stream+=`1 0 0 1 ${tx} ${ty} Tm (${esc(line)}) Tj\n`});
+      });
+      stream+='ET\n';
+      y-=h;
+    });
+    stream+=`BT\n/F1 7 Tf\n${margin} 14 Td\n(Page ${pageIndex+1} of ${pages.length}) Tj\nET\nQ`;
+    const cid=add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);contentIds.push(cid);pageIds.push(add(''));
+  });
+  const pagesId=add('');const catalogId=add('');
+  pageIds.forEach((pid,i)=>{objs[pid-1]=`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Resources << /Font << /F1 ${font} 0 R >> >> /Contents ${contentIds[i]} 0 R >>`});
+  objs[pagesId-1]=`<< /Type /Pages /Kids [${pageIds.map(id=>id+' 0 R').join(' ')}] /Count ${pageIds.length} >>`;
+  objs[catalogId-1]=`<< /Type /Catalog /Pages ${pagesId} 0 R >>`;
+  let pdf='%PDF-1.4\n',offsets=[0];objs.forEach((o,i)=>{offsets[i+1]=pdf.length;pdf+=(i+1)+' 0 obj\n'+o+'\nendobj\n'});
+  const xref=pdf.length;pdf+='xref\n0 '+(objs.length+1)+'\n0000000000 65535 f \n';for(let i=1;i<offsets.length;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';pdf+=`trailer\n<< /Size ${objs.length+1} /Root ${catalogId} 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  const blob=new Blob([pdf],{type:'application/pdf'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function Reports(){
+  const [view,setView]=useState('state');
+  const [rows,setRows]=useState([]);
+  const [busy,setBusy]=useState(false);
+  const [err,setErr]=useState('');
+  const [from,setFrom]=useState('');
+  const [to,setTo]=useState('');
+  const [user,setUser]=useState('');
+  const [role,setRole]=useState('');
+  const [module,setModule]=useState('');
+  const [action,setAction]=useState('');
+  const [search,setSearch]=useState('');
+  const token=localStorage.getItem('vam_token')||'';
+
+  const configs={
+    state:{title:'State-wise Report',heads:['State / UT','Venues','Asset Quantity'],url:'/api/reports/state'},
+    district:{title:'District-wise Report',heads:['State / UT','District','Venues','Asset Quantity'],url:'/api/reports/district'},
+    venue:{title:'Venue-wise Report',heads:['State / UT','District','Venue ID','Venue Name','Asset Records','Asset Quantity'],url:'/api/reports/venue'},
+    user:{title:'User-wise Report',heads:['User','Email','Role','Activities','Last Activity'],url:'/api/reports/user'},
+    asset:{title:'Asset-wise Report',heads:['Venue ID','Venue Name','Asset ID','Asset Type','Category','Model','Serial','Invoice No','Invoice Date','Vendor','Qty','Status','Removal Asset','Removal Date'],url:'/api/reports/asset'},
+    letters:{title:'Asset Letters Report',heads:['Venue ID','Venue Name','Letter Date','File Name','MIME','Size','Uploaded By','Created At'],url:'/api/reports/letters'},
+    swapping:{title:'Swapping Report',heads:['Date / Time','Asset ID','From Venue','To Venue','Asset Type','Category','Model','Serial','Qty','Swapped By'],url:'/api/reports/swapping'},
+    activity:{title:'User Activity Log',heads:['Date / Time','User','Email','Role','Action','Module','Details','IP Address'],url:'/api/reports/user-log'}
+  };
+
+  const load=async()=>{
+    setBusy(true);setErr('');
+    try{
+      const c=configs[view];
+      const qs=new URLSearchParams();
+      if(view==='activity'){
+        if(from)qs.set('from',from);
+        if(to)qs.set('to',to);
+        if(user)qs.set('user',user);
+        if(role)qs.set('role',role);
+        if(module)qs.set('module',module);
+        if(action)qs.set('action',action);
+        if(search)qs.set('search',search);
+      }
+      const r=await fetch(`${API_BASE}${c.url}${qs.toString()?'?'+qs.toString():''}`,{headers:{Authorization:`Bearer ${token}`}});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||'Unable to load report');
+      setRows(Array.isArray(d)?d:[]);
+    }catch(e){setRows([]);setErr(e.message||'Unable to load report')}
+    finally{setBusy(false)}
+  };
+
+  useEffect(()=>{load()},[view,from,to,user,role,module,action,search]);
+
+  const dataRows=rows.map(x=>{
+    if(view==='state')return [x.state||'-',x.total_venues||0,x.total_assets||0];
+    if(view==='district')return [x.state||'-',x.district||'-',x.total_venues||0,x.total_assets||0];
+    if(view==='venue')return [x.state||'-',x.district||'-',x.venue_id||'-',x.venue_name||'-',x.asset_records||0,x.asset_quantity||0];
+    if(view==='user')return [x.user_name||'-',x.email||'-',x.role||'-',x.activities||0,x.last_activity||'-'];
+    if(view==='asset')return [x.venue_id||'-',x.venue_name||'-',x.asset_id||'-',x.asset_type||'-',x.category||'-',x.model_name||'-',x.serial_number||'-',x.invoice_no||'-',x.invoice_date||'-',x.vendor_name||'-',x.quantity||0,x.status||'-',x.removal_asset?'Yes':'No',x.removal_date||'-'];
+    if(view==='letters')return [x.venue_id||'-',x.venue_name||'-',x.letter_date||'-',x.file_name||'-',x.mime_type||'-',`${x.file_size||0} bytes`,x.uploaded_by||'-',x.created_at||'-'];
+    if(view==='swapping')return [x.swapped_at||'-',x.asset_id||'-',x.from_venue||x.from_venue_id||'-',x.to_venue||x.to_venue_id||'-',x.asset_type||'-',x.category||'-',x.model_name||'-',x.serial_number||'-',x.quantity||0,x.swapped_by||'-'];
+    return [x.created_at||'-',x.user_name||'-',x.email||'-',x.role||'-',x.action||'-',x.module||'-',x.details||'-',x.ip_address||'-'];
+  });
+
+  const csv=()=>{
+    const content=[configs[view].heads,...dataRows].map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(',')).join('\n');
+    const u=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8;'})),a=document.createElement('a');
+    a.href=u;a.download=`venue-asset-${view}-report.csv`;a.click();URL.revokeObjectURL(u);
+  };
+  const pdf=()=>downloadSimplePDF(`Venue Asset Manager - ${configs[view].title}`,configs[view].heads,dataRows,`venue-asset-${view}-report.pdf`);
+
+  return <Page title="Reports" sub="MySQL reports â€” State, District, Venue, User, Asset, Letters, Swapping and Activity" action={
+    <div className="report-actions"><button className="btn" onClick={csv}><Download size={16}/>Export CSV</button><button className="primary" onClick={pdf}><Download size={16}/>Download PDF</button></div>
+  }>
+    <div className="report-selector">
+      <b>Report</b>
+      <select value={view} onChange={e=>setView(e.target.value)}>
+        <option value="state">1. State-wise</option>
+        <option value="district">2. District-wise</option>
+        <option value="venue">3. Venue-wise</option>
+        <option value="user">4. User-wise</option>
+        <option value="asset">5. Asset-wise</option>
+        <option value="letters">6. Asset Letters</option>
+        <option value="swapping">7. Swapping Report</option>
+        <option value="activity">8. User Activity Log</option>
+      </select>
+    </div>
+    {view==='activity'&&<section className="panel">
+      <div className="form">
+        <label>Date From<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
+        <label>Date To<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>
+        <label>User<input value={user} onChange={e=>setUser(e.target.value)} placeholder="User / email"/></label>
+        <label>Role<input value={role} onChange={e=>setRole(e.target.value)} placeholder="Role"/></label>
+        <label>Module<input value={module} onChange={e=>setModule(e.target.value)} placeholder="Module"/></label>
+        <label>Action<input value={action} onChange={e=>setAction(e.target.value)} placeholder="Action"/></label>
+        <label className="wide">Search<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search activity details"/></label>
+      </div>
+    </section>}
+    {err&&<div className="err">{err}</div>}
+    {busy?<div className="empty">Loading report...</div>:<section className="panel"><h2>{configs[view].title}</h2><Table heads={configs[view].heads} rows={dataRows}/>{!dataRows.length&&<div className="empty">No records found.</div>}</section>}
+  </Page>
+}
+
+function App(){const[ready,setReady]=useState(false);useEffect(()=>{(async()=>{if(localStorage.getItem('vam_token')){try{await hydrateFromServer()}catch{localStorage.removeItem('vam_token');localStorage.removeItem('vam_session')}}setReady(true)})()},[]);if(!ready)return <div className="login"><div className="loginbox"><div className="logo">VA</div><h1>Venue Asset Manager</h1><p>Connecting to serverÃ¢â‚¬Â¦</p></div></div>;return <Routes><Route path="/login" element={<Login/>}/><Route path="*" element={get('vam_session')?<Layout/>:<Navigate to="/login"/>}/></Routes>}
+
+createRoot(document.getElementById('root')).render(
+  <BrowserRouter basename="/venueassetmanager">
+    <App/>
+  </BrowserRouter>
+);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
