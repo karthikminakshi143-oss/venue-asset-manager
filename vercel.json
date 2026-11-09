@@ -1,9 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
-    "venue-asset-manager": {
+    "app": {
       "root": "venue-asset-manager",
       "framework": "vite",
+      "outputDirectory": "dist",
       "bindings": [
         {
           "type": "service",
@@ -29,7 +30,8 @@
     {
       "source": "/(.*)",
       "destination": {
-        "service": "venue-asset-manager"
+        "service": "app",
+        "path": "/index.html"
       }
     }
   ]
